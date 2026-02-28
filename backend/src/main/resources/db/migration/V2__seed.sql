@@ -1,0 +1,15 @@
+INSERT INTO companies(name) VALUES ('AI Company') ON CONFLICT DO NOTHING;
+INSERT INTO sites(company_id,name,region) SELECT id,'India','APAC' FROM companies LIMIT 1;
+INSERT INTO teams(site_id,name) SELECT id,'Core Team' FROM sites LIMIT 1;
+INSERT INTO projects(team_id,name,description,default_branch) SELECT id,'Platform Project','Seed project','main' FROM teams LIMIT 1;
+INSERT INTO boards(project_id,name) SELECT id,'Main Board' FROM projects LIMIT 1;
+INSERT INTO board_columns(board_id,name,idx) SELECT id,'Backlog',0 FROM boards LIMIT 1;
+INSERT INTO board_columns(board_id,name,idx) SELECT id,'In Progress',1 FROM boards LIMIT 1;
+INSERT INTO board_columns(board_id,name,idx) SELECT id,'Review',2 FROM boards LIMIT 1;
+INSERT INTO board_columns(board_id,name,idx) SELECT id,'Done',3 FROM boards LIMIT 1;
+INSERT INTO agents(team_id,name,role,status) SELECT id,'Madhav','DEV','ACTIVE' FROM teams LIMIT 1;
+INSERT INTO agents(team_id,name,role,status) SELECT id,'Naina','QA','ACTIVE' FROM teams LIMIT 1;
+INSERT INTO agents(team_id,name,role,status) SELECT id,'Kabir','OPS','ACTIVE' FROM teams LIMIT 1;
+INSERT INTO agents(team_id,name,role,status) SELECT id,'Rishi','PM','ACTIVE' FROM teams LIMIT 1;
+INSERT INTO llm_provider_configs(name,base_url,models_json,api_key_ref) VALUES ('openai','https://api.openai.com/v1','["gpt-4o-mini","gpt-4.1"]','OPENAI_API_KEY');
+INSERT INTO llm_provider_configs(name,base_url,models_json,api_key_ref) VALUES ('ollama','http://localhost:11434','["llama3.1","qwen2.5-coder"]','OLLAMA_LOCAL');

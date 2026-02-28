@@ -1,21 +1,9 @@
 {
   "name": "ai-company-platform",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "dev": "concurrently \"npm:dev --workspace backend\" \"npm:dev --workspace frontend\"",
-    "build": "npm run build --workspace backend && npm run build --workspace frontend"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "private": true,
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
-  "devDependencies": {
-    "concurrently": "^9.2.1"
+  "version": "1.0.0",
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build"
   }
 }

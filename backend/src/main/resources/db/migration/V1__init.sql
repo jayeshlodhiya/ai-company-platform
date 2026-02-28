@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS users(id BIGSERIAL PRIMARY KEY,email TEXT UNIQUE,password_hash TEXT,name TEXT,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS companies(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS sites(id BIGSERIAL PRIMARY KEY,company_id BIGINT REFERENCES companies(id),name TEXT NOT NULL,region TEXT,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS teams(id BIGSERIAL PRIMARY KEY,site_id BIGINT REFERENCES sites(id),name TEXT NOT NULL,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS projects(id BIGSERIAL PRIMARY KEY,team_id BIGINT REFERENCES teams(id),name TEXT NOT NULL,description TEXT,github_repo_url TEXT,default_branch TEXT,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS agents(id BIGSERIAL PRIMARY KEY,team_id BIGINT REFERENCES teams(id),name TEXT NOT NULL,role TEXT NOT NULL,capabilities TEXT,prompt_template TEXT,status TEXT DEFAULT 'IDLE');
+CREATE TABLE IF NOT EXISTS boards(id BIGSERIAL PRIMARY KEY,project_id BIGINT REFERENCES projects(id),name TEXT NOT NULL,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS board_columns(id BIGSERIAL PRIMARY KEY,board_id BIGINT REFERENCES boards(id),name TEXT NOT NULL,idx INT NOT NULL);
+CREATE TABLE IF NOT EXISTS cards(id BIGSERIAL PRIMARY KEY,board_id BIGINT REFERENCES boards(id),column_id BIGINT REFERENCES board_columns(id),title TEXT NOT NULL,description TEXT,priority TEXT,type TEXT,labels TEXT,due_date DATE,story_points INT,created_at TIMESTAMP DEFAULT now(),updated_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS card_assignees(id BIGSERIAL PRIMARY KEY,card_id BIGINT REFERENCES cards(id),agent_id BIGINT REFERENCES agents(id));
+CREATE TABLE IF NOT EXISTS card_comments(id BIGSERIAL PRIMARY KEY,card_id BIGINT REFERENCES cards(id),author_id BIGINT,body TEXT,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS runs(id BIGSERIAL PRIMARY KEY,card_id BIGINT REFERENCES cards(id),status TEXT,provider TEXT,model TEXT,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS message_logs(id BIGSERIAL PRIMARY KEY,run_id BIGINT REFERENCES runs(id),agent_role TEXT,content TEXT,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS artifacts(id BIGSERIAL PRIMARY KEY,run_id BIGINT REFERENCES runs(id),card_id BIGINT REFERENCES cards(id),kind TEXT,title TEXT,content TEXT,created_at TIMESTAMP DEFAULT now());
+CREATE TABLE IF NOT EXISTS llm_provider_configs(id BIGSERIAL PRIMARY KEY,name TEXT,base_url TEXT,models_json TEXT,api_key_ref TEXT);
+CREATE TABLE IF NOT EXISTS github_links(id BIGSERIAL PRIMARY KEY,project_id BIGINT REFERENCES projects(id),repo_url TEXT,branch TEXT,token_ref TEXT,webhook_url TEXT);
