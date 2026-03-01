@@ -11,5 +11,5 @@ INSERT INTO agents(team_id,name,role,status) SELECT id,'Madhav','DEV','ACTIVE' F
 INSERT INTO agents(team_id,name,role,status) SELECT id,'Naina','QA','ACTIVE' FROM teams LIMIT 1;
 INSERT INTO agents(team_id,name,role,status) SELECT id,'Kabir','OPS','ACTIVE' FROM teams LIMIT 1;
 INSERT INTO agents(team_id,name,role,status) SELECT id,'Rishi','PM','ACTIVE' FROM teams LIMIT 1;
-INSERT INTO llm_provider_configs(name,base_url,models_json,api_key_ref) VALUES ('openai','https://api.openai.com/v1','["gpt-4o-mini","gpt-4.1"]','OPENAI_API_KEY');
+INSERT INTO llm_provider_configs(name,base_url,models_json,api_key_ref) VALUES ('openai','https://api.openai.com/v1','["openai-codex/gpt-5.3-codex","gpt-4o-mini","gpt-4.1"]','OPENAI_API_KEY');
 INSERT INTO llm_provider_configs(name,base_url,models_json,api_key_ref) VALUES ('ollama','http://localhost:11434','["llama3.1","qwen2.5-coder"]','OLLAMA_LOCAL');
