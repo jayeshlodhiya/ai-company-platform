@@ -87,7 +87,8 @@ public class ApiController {
     new Thread(() -> {
       try {
         var root = repoRoot();
-        runCmd(root, "sh", "-c", "pkill -f 'vite' || true; cd frontend && nohup npm run dev >/tmp/ai-company-frontend.log 2>&1 &");
+        // Keep frontend process alive to avoid full page reloads during task progression.
+        // Restart backend only when redeploy hook runs.
         runCmd(root, "sh", "-c", "pkill -f 'spring-boot:run|AiCompanyApplication' || true; cd backend && nohup mvn spring-boot:run >/tmp/ai-company-backend.log 2>&1 &");
       } catch (Exception ignored) {}
     }, "redeploy-thread").start();
@@ -307,11 +308,8 @@ public class ApiController {
 
     if (inProgressId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", inProgressId, cardId);
 
-    var titleForSpeed = String.valueOf(card.get("title")).toLowerCase(Locale.ROOT);
-    var slowMode = titleForSpeed.contains("slow") || titleForSpeed.contains("slowly") || titleForSpeed.contains("stage");
-    if (slowMode) {
-      try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
-    }
+    // Slow stage movement for visibility: 3s between transitions.
+    try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
 
     jdbc.update("insert into runs(card_id,status,provider,model) values(?,?,?,?)", cardId, "RUNNING", b==null?"openai":b.getOrDefault("provider","openai"), b==null?"openai-codex/gpt-5.3-codex":b.getOrDefault("model","openai-codex/gpt-5.3-codex"));
     Long runId = jdbc.queryForObject("select max(id) from runs", Long.class);
@@ -320,9 +318,7 @@ public class ApiController {
     jdbc.update("insert into message_logs(run_id,agent_role,content) values(?,?,?)", runId, "QA", "Added tests and test plan");
 
     if (reviewId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", reviewId, cardId);
-    if (slowMode) {
-      try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
-    }
+    try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
 
     var title = String.valueOf(card.get("title"));
     var description = String.valueOf(card.getOrDefault("description", ""));
@@ -340,9 +336,6 @@ public class ApiController {
     jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "summary", "Run Summary", "Planning → Execution → Review complete");
 
     if (doneId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", doneId, cardId);
-    if (slowMode) {
-      try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
-    }
     jdbc.update("update runs set status='COMPLETED' where id=?", runId);
 
     // Auto-rebuild + redeploy + PR with actual code changes.

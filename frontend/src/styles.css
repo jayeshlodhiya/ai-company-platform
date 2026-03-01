@@ -24,9 +24,9 @@
 .tileBtn.active{background:#111827;color:#fff;border-color:#111827}
 
 .kanban{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;position:relative;padding-bottom:68px}
-.col{background:#f4f6fa;border:1px solid #e5e7eb;border-radius:18px;padding:12px;min-height:430px;box-shadow:0 8px 18px rgba(15,23,42,.04)}
+.col{background:#f4f6fa;border:1px solid #e5e7eb;border-radius:18px;padding:12px;min-height:430px;box-shadow:0 8px 18px rgba(15,23,42,.04);display:grid;grid-template-rows:auto 1fr}
 .col h4{margin:0 0 10px;font-size:30px;color:#111827}
-.cards{display:grid;gap:10px}
+.cards{display:grid;gap:10px;max-height:420px;overflow-y:auto;padding-right:4px}
 .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:16px;padding:10px;display:grid;gap:4px;box-shadow:0 4px 10px rgba(15,23,42,.03)}
 .card b{font-size:22px;line-height:1.15;color:#111827}
 .card small{color:#6b7280;font-size:12px;letter-spacing:.02em}
