@@ -110,6 +110,13 @@ public class ApiController {
     String staged = runCmd(root, "sh", "-c", "git diff --cached --name-only");
     if (staged.isBlank()) return Map.of("ok", false, "error", "No code changes staged for PR");
 
+    var stagedFiles = Arrays.stream(staged.split("\\n")).map(String::trim).filter(s -> !s.isBlank()).toList();
+    var onlyChangelog = !stagedFiles.isEmpty() && stagedFiles.stream().allMatch(f -> f.equals("CHANGELOG.md"));
+    if (onlyChangelog) {
+      runCmd(root, "git", "reset", "--hard");
+      return Map.of("ok", false, "error", "Only fallback change detected (CHANGELOG.md). No relevant code diff for PR.", "staged", staged);
+    }
+
     runCmd(root, "git", "commit", "-m", "feat: auto change for run #" + runId + " - " + title);
     runCmd(root, "git", "push", "-u", "origin", branch, "--force");
 
@@ -300,6 +307,12 @@ public class ApiController {
 
     if (inProgressId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", inProgressId, cardId);
 
+    var titleForSpeed = String.valueOf(card.get("title")).toLowerCase(Locale.ROOT);
+    var slowMode = titleForSpeed.contains("slow") || titleForSpeed.contains("slowly") || titleForSpeed.contains("stage");
+    if (slowMode) {
+      try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
+    }
+
     jdbc.update("insert into runs(card_id,status,provider,model) values(?,?,?,?)", cardId, "RUNNING", b==null?"openai":b.getOrDefault("provider","openai"), b==null?"openai-codex/gpt-5.3-codex":b.getOrDefault("model","openai-codex/gpt-5.3-codex"));
     Long runId = jdbc.queryForObject("select max(id) from runs", Long.class);
     jdbc.update("insert into message_logs(run_id,agent_role,content) values(?,?,?)", runId, "PM", "Task decomposed into subtasks");
@@ -307,6 +320,9 @@ public class ApiController {
     jdbc.update("insert into message_logs(run_id,agent_role,content) values(?,?,?)", runId, "QA", "Added tests and test plan");
 
     if (reviewId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", reviewId, cardId);
+    if (slowMode) {
+      try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
+    }
 
     var title = String.valueOf(card.get("title"));
     var description = String.valueOf(card.getOrDefault("description", ""));
@@ -324,6 +340,9 @@ public class ApiController {
     jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "summary", "Run Summary", "Planning → Execution → Review complete");
 
     if (doneId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", doneId, cardId);
+    if (slowMode) {
+      try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
+    }
     jdbc.update("update runs set status='COMPLETED' where id=?", runId);
 
     // Auto-rebuild + redeploy + PR with actual code changes.
