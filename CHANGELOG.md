@@ -13,3 +13,4 @@
 - Sun Mar 01 13:48:37 IST 2026 :: hide restart service button
 - Sun Mar 01 14:04:39 IST 2026 :: Hide "Restart Services" button from project
 - Sun Mar 01 15:18:27 IST 2026 :: Remove Restart Services button from menu bar
+- Sun Mar 01 17:21:45 IST 2026 :: add a scroll bar in kanabn stages

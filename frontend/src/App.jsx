@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
 const api = axios.create({ baseURL: 'http://localhost:4600/api' });
@@ -10,11 +10,23 @@ const AGENT_FACE = {
   OPS: '🚀',
   SECURITY: '🛡️'
 };
+const PLATFORM_ADMIN_EMAIL = 'admin@example.com';
 
 export default function App() {
   const [tab, setTab] = useState('kanban');
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState(null);
+  const [companies, setCompanies] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [selectedSiteId, setSelectedSiteId] = useState(null);
+  const [selectedTeamId, setSelectedTeamId] = useState(null);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newSiteName, setNewSiteName] = useState('');
+  const [newSiteRegion, setNewSiteRegion] = useState('APAC');
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newProjectName, setNewProjectName] = useState('');
   const [boards, setBoards] = useState([]);
   const [boardId, setBoardId] = useState(null);
   const [columns, setColumns] = useState([]);
@@ -26,6 +38,16 @@ export default function App() {
   const [runMessages, setRunMessages] = useState([]);
   const [runArtifacts, setRunArtifacts] = useState([]);
 
+  const uniqueColumns = useMemo(() => {
+    const seen = new Set();
+    return (columns || []).filter((c) => {
+      const k = String(c.name || '').toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [columns]);
+
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [forceOnboarding, setForceOnboarding] = useState(false);
   const [onboardCompany, setOnboardCompany] = useState('');
@@ -34,29 +56,121 @@ export default function App() {
   const [onboardTeam, setOnboardTeam] = useState('');
   const [onboardProject, setOnboardProject] = useState('');
   const [onboardingStep, setOnboardingStep] = useState(1);
+  const [requiresLogin, setRequiresLogin] = useState(!localStorage.getItem('ai_company_token'));
+  const [email, setEmail] = useState('admin@example.com');
+  const [password, setPassword] = useState('password123');
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
-  useEffect(() => { bootstrap(); }, []);
+  useEffect(() => {
+    const saved = localStorage.getItem('ai_company_token');
+    const savedRole = localStorage.getItem('ai_company_role');
+    if (saved) {
+      api.defaults.headers.common.Authorization = `Bearer ${saved}`;
+      setIsPlatformAdmin(savedRole === 'platform_admin');
+      setRequiresLogin(false);
+    }
+  }, []);
+
+  useEffect(() => { if (!requiresLogin) bootstrap(); }, [requiresLogin]);
   useEffect(() => { if (projectId) loadBoards(projectId); }, [projectId]);
   useEffect(() => { if (boardId) loadColumns(boardId); }, [boardId]);
 
   async function bootstrap() {
-    await api.post('/auth/register', { email: 'admin@example.com', password: 'password123', name: 'Admin' }).catch(()=>{});
-    const login = await api.post('/auth/login', { email: 'admin@example.com', password: 'password123' });
-    api.defaults.headers.common.Authorization = `Bearer ${login.data.token}`;
-
-    const companies = await api.get('/companies');
-    const sites = await api.get('/sites');
-    const teams = await api.get('/teams');
+    const companiesRes = await api.get('/companies');
+    const sitesRes = await api.get('/sites');
+    const teamsRes = await api.get('/teams');
     const projectsRes = await api.get('/projects');
 
-    if (!companies.data.items.length || !sites.data.items.length || !teams.data.items.length || !projectsRes.data.items.length) {
+    setCompanies(companiesRes.data.items || []);
+    setSites(sitesRes.data.items || []);
+    setTeams(teamsRes.data.items || []);
+
+    if (!companiesRes.data.items.length || !sitesRes.data.items.length || !teamsRes.data.items.length || !projectsRes.data.items.length) {
       setNeedsOnboarding(true);
       return;
     }
 
+    const cId = companiesRes.data.items[0].id;
+    const siteRows = (sitesRes.data.items || []).filter((s) => s.company_id === cId || s.companyId === cId);
+    const sId = siteRows[0]?.id;
+    const teamRows = (teamsRes.data.items || []).filter((t) => t.site_id === sId || t.siteId === sId);
+    const tId = teamRows[0]?.id;
+    const projectRows = (projectsRes.data.items || []).filter((p) => p.team_id === tId || p.teamId === tId);
+
+    setSelectedCompanyId(cId);
+    setSelectedSiteId(sId || null);
+    setSelectedTeamId(tId || null);
     setProjects(projectsRes.data.items);
-    setProjectId(projectsRes.data.items[0]?.id || null);
+    setProjectId((projectRows[0] || projectsRes.data.items[0])?.id || null);
     setAgents((await api.get('/agents')).data.items || []);
+  }
+
+  async function refreshHierarchy() {
+    const companiesRes = await api.get('/companies');
+    const sitesRes = await api.get('/sites');
+    const teamsRes = await api.get('/teams');
+    const projectsRes = await api.get('/projects');
+    setCompanies(companiesRes.data.items || []);
+    setSites(sitesRes.data.items || []);
+    setTeams(teamsRes.data.items || []);
+    setProjects(projectsRes.data.items || []);
+  }
+
+  async function createCompanyQuick() {
+    if (!isPlatformAdmin) {
+      setNote('Only Platform Admin can create companies');
+      return;
+    }
+    if (!newCompanyName.trim()) return;
+    await api.post('/companies', { name: newCompanyName.trim() });
+    setNewCompanyName('');
+    await refreshHierarchy();
+  }
+
+  async function createSiteQuick() {
+    if (!selectedCompanyId || !newSiteName.trim()) return;
+    await api.post('/sites', { companyId: selectedCompanyId, name: newSiteName.trim(), region: newSiteRegion || 'APAC' });
+    setNewSiteName('');
+    await refreshHierarchy();
+  }
+
+  async function createTeamQuick() {
+    if (!selectedSiteId || !newTeamName.trim()) return;
+    await api.post('/teams', { siteId: selectedSiteId, name: newTeamName.trim() });
+    setNewTeamName('');
+    await refreshHierarchy();
+  }
+
+  async function createProjectQuick() {
+    if (!selectedTeamId || !newProjectName.trim()) return;
+    await api.post('/projects', { teamId: selectedTeamId, name: newProjectName.trim(), description: 'Created from hierarchy', defaultBranch: 'main' });
+    setNewProjectName('');
+    await refreshHierarchy();
+  }
+
+  async function loginCompany() {
+    try {
+      await api.post('/auth/register', { email, password, name: 'Company Admin' }).catch(()=>{});
+      const login = await api.post('/auth/login', { email, password });
+      api.defaults.headers.common.Authorization = `Bearer ${login.data.token}`;
+      localStorage.setItem('ai_company_token', login.data.token);
+      const platform = email.trim().toLowerCase() === PLATFORM_ADMIN_EMAIL;
+      localStorage.setItem('ai_company_role', platform ? 'platform_admin' : 'company_admin');
+      setIsPlatformAdmin(platform);
+      setRequiresLogin(false);
+      setNote(platform ? 'Logged in as Platform Admin' : 'Logged in as Company Admin');
+    } catch (e) {
+      setNote('Login failed');
+    }
+  }
+
+  function logoutCompany() {
+    localStorage.removeItem('ai_company_token');
+    localStorage.removeItem('ai_company_role');
+    delete api.defaults.headers.common.Authorization;
+    setIsPlatformAdmin(false);
+    setRequiresLogin(true);
+    setNote('Logged out');
   }
 
   async function completeOnboarding() {
@@ -79,8 +193,17 @@ export default function App() {
 
     await api.post('/projects', { teamId, name: onboardProject, description: 'Onboarded project', defaultBranch: 'main' });
     const projectsRes = await api.get('/projects');
+    const companiesRes = await api.get('/companies');
+    const sitesRes = await api.get('/sites');
+    const teamsRes = await api.get('/teams');
+    setCompanies(companiesRes.data.items || []);
+    setSites(sitesRes.data.items || []);
+    setTeams(teamsRes.data.items || []);
+    setSelectedCompanyId(companyId);
+    setSelectedSiteId(siteId);
+    setSelectedTeamId(teamId);
     setProjects(projectsRes.data.items);
-    setProjectId(projectsRes.data.items[0]?.id || null);
+    setProjectId(projectsRes.data.items.find((p)=> (p.team_id===teamId || p.teamId===teamId))?.id || null);
 
     const a = await api.get('/agents');
     if (!a.data.items.length) {
@@ -143,10 +266,10 @@ export default function App() {
       if (!boardId && projectId) {
         await loadBoards(projectId);
       }
-      if (!columns.length && boardId) {
+      if (!uniqueColumns.length && boardId) {
         await loadColumns(boardId);
       }
-      if (!columns.length && projectId) {
+      if (!uniqueColumns.length && projectId) {
         await loadBoards(projectId);
         const b = await api.get(`/projects/${projectId}/boards`);
         const bid = b.data.items?.[0]?.id;
@@ -156,12 +279,12 @@ export default function App() {
         }
       }
 
-      if (!columns.length) {
+      if (!uniqueColumns.length) {
         setNote('Could not load board columns automatically. Please click Refresh.');
         return;
       }
 
-      const targetCol = columns.find((c) => String(c.name).toLowerCase() === 'backlog') || columns[0];
+      const targetCol = uniqueColumns.find((c) => String(c.name).toLowerCase() === 'backlog') || uniqueColumns[0];
       const created = await api.post(`/columns/${targetCol.id}/cards`, {
         title: text,
         description: text,
@@ -218,6 +341,22 @@ export default function App() {
     setSelectedRun(run.data.item);
     setRunMessages(msgs.data.items || []);
     setRunArtifacts(arts.data.items || []);
+  }
+
+  if (requiresLogin) {
+    return <div className='shell'>
+      <aside className='sidebar'><h2>AI Company</h2></aside>
+      <section className='main'>
+        <div className='panel onboard-grid'>
+          <h3>Company Login</h3>
+          <div className='row'>Platform Admin email: <b>{PLATFORM_ADMIN_EMAIL}</b></div>
+          <input placeholder='Company admin email' value={email} onChange={e=>setEmail(e.target.value)} />
+          <input type='password' placeholder='Password' value={password} onChange={e=>setPassword(e.target.value)} />
+          <button onClick={loginCompany}>Login</button>
+          {note && <div className='row'>{note}</div>}
+        </div>
+      </section>
+    </div>;
   }
 
   if (needsOnboarding || forceOnboarding) {
@@ -281,6 +420,32 @@ export default function App() {
             )}
           </div>
 
+          <div className='panel'>
+            <h4>Settings: Quick Create</h4>
+            <div className='row'>{isPlatformAdmin ? 'Platform Admin: full access' : 'Company Admin: sites, teams, projects'}</div>
+
+            {isPlatformAdmin && (
+              <div className='hCreate'>
+                <input placeholder='New company' value={newCompanyName} onChange={e=>setNewCompanyName(e.target.value)} />
+                <button onClick={createCompanyQuick}>Add Company</button>
+              </div>
+            )}
+
+            <div className='hCreate'>
+              <input placeholder='New site' value={newSiteName} onChange={e=>setNewSiteName(e.target.value)} />
+              <input placeholder='Region' value={newSiteRegion} onChange={e=>setNewSiteRegion(e.target.value)} />
+              <button onClick={createSiteQuick}>Add Site</button>
+            </div>
+            <div className='hCreate'>
+              <input placeholder='New team' value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} />
+              <button onClick={createTeamQuick}>Add Team</button>
+            </div>
+            <div className='hCreate'>
+              <input placeholder='New project' value={newProjectName} onChange={e=>setNewProjectName(e.target.value)} />
+              <button onClick={createProjectQuick}>Add Project</button>
+            </div>
+          </div>
+
           {note && <div className='row'>{note}</div>}
         </div>
       </section>
@@ -291,13 +456,17 @@ export default function App() {
     <aside className='sidebar'>
       <h2>AI Company</h2>
       <div className='tree'>
-        <div>Company → Sites → Teams → Projects</div>
-        {projects.map(p => <button key={p.id} className={p.id===projectId?'active':''} onClick={()=>setProjectId(p.id)}>{p.name}</button>)}
+        <div>Company Workspace</div>
+        <div className='row'>Use hierarchy tiles in main area to navigate Company → Site → Team → Project.</div>
+
       </div>
     </aside>
 
     <section className='main'>
       <header className='topbar'>
+        <div className='crumb'>
+          {companies.find(c=>c.id===selectedCompanyId)?.name || 'Company'} › {sites.find(s=>s.id===selectedSiteId)?.name || 'Site'} › {teams.find(t=>t.id===selectedTeamId)?.name || 'Team'} › {projects.find(p=>p.id===projectId)?.name || 'Project'}
+        </div>
         <input placeholder='Search...' />
         <div className='tabs'>
           <button disabled style={{opacity:1,cursor:'default'}}>Auto Executor: ON</button>
@@ -305,12 +474,61 @@ export default function App() {
           <button onClick={()=>setTab('agents')} className={tab==='agents'?'active':''}>Agents</button>
           <button onClick={()=>setTab('github')} className={tab==='github'?'active':''}>GitHub</button>
           <button onClick={()=>setForceOnboarding(true)}>Company Onboarding</button>
+          <button onClick={logoutCompany}>Logout</button>
         </div>
       </header>
       {note && <div className='row'>{note}</div>}
 
+      <div className='hierarchyTiles'>
+        <div className='tileCol'>
+          <h4>Companies</h4>
+          {(companies || []).map(c => (
+            <button key={c.id} className={`tileBtn ${c.id===selectedCompanyId?'active':''}`} onClick={()=>{
+              setSelectedCompanyId(c.id);
+              const siteRows = (sites||[]).filter(s => (s.company_id===c.id || s.companyId===c.id));
+              const sId = siteRows[0]?.id || null;
+              setSelectedSiteId(sId);
+              const teamRows = (teams||[]).filter(t => (t.site_id===sId || t.siteId===sId));
+              const tId = teamRows[0]?.id || null;
+              setSelectedTeamId(tId);
+              const pRows = (projects||[]).filter(p => (p.team_id===tId || p.teamId===tId));
+              if (pRows[0]) setProjectId(pRows[0].id);
+            }}>{c.name}</button>
+          ))}
+        </div>
+        <div className='tileCol'>
+          <h4>Sites</h4>
+          {(sites || []).filter(s => !selectedCompanyId || s.company_id===selectedCompanyId || s.companyId===selectedCompanyId).map(s => (
+            <button key={s.id} className={`tileBtn ${s.id===selectedSiteId?'active':''}`} onClick={()=>{
+              setSelectedSiteId(s.id);
+              const teamRows = (teams||[]).filter(t => (t.site_id===s.id || t.siteId===s.id));
+              const tId = teamRows[0]?.id || null;
+              setSelectedTeamId(tId);
+              const pRows = (projects||[]).filter(p => (p.team_id===tId || p.teamId===tId));
+              if (pRows[0]) setProjectId(pRows[0].id);
+            }}>{s.name}</button>
+          ))}
+        </div>
+        <div className='tileCol'>
+          <h4>Teams</h4>
+          {(teams || []).filter(t => !selectedSiteId || t.site_id===selectedSiteId || t.siteId===selectedSiteId).map(t => (
+            <button key={t.id} className={`tileBtn ${t.id===selectedTeamId?'active':''}`} onClick={()=>{
+              setSelectedTeamId(t.id);
+              const pRows = (projects||[]).filter(p => (p.team_id===t.id || p.teamId===t.id));
+              if (pRows[0]) setProjectId(pRows[0].id);
+            }}>{t.name}</button>
+          ))}
+        </div>
+        <div className='tileCol'>
+          <h4>Projects</h4>
+          {projects.filter(p => !selectedTeamId || p.team_id===selectedTeamId || p.teamId===selectedTeamId).map(p => (
+            <button key={p.id} className={`tileBtn ${p.id===projectId?'active':''}`} onClick={()=>setProjectId(p.id)}>{p.name}</button>
+          ))}
+        </div>
+      </div>
+
       {tab==='kanban' && <div className='kanban'>
-        {columns.map((col, colIdx) => <div key={col.id} className='col'>
+        {uniqueColumns.map((col, colIdx) => <div key={col.id} className='col'>
           <h4>{col.name}</h4>
           <div className='cards'>
             {col.cards?.map(card => <div className='card' key={card.id}>
