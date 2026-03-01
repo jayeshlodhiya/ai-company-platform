@@ -311,8 +311,6 @@ export default function App() {
               <b>{card.title}</b>
               <small>{card.priority} · {card.type}</small>
               <div className='moves'>
-                {colIdx > 0 && <button onClick={()=>moveCard(card.id, columns[colIdx-1].id)}>← Move</button>}
-                {colIdx < columns.length-1 && <button onClick={()=>moveCard(card.id, columns[colIdx+1].id)}>Move →</button>}
                 <button onClick={()=>deleteCard(card.id)}>Delete</button>
               </div>
             </div>)}
