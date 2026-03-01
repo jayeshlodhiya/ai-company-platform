@@ -7,3 +7,6 @@
 - Sun Mar 01 11:45:24 IST 2026 :: Hide "Refresh" button from this project
 - Sun Mar 01 12:07:55 IST 2026 :: Sample: Build first feature
 - Sun Mar 01 12:08:36 IST 2026 :: show refresh button in this project
+- Sun Mar 01 12:29:25 IST 2026 :: Auto PR live test task
+- Sun Mar 01 12:34:30 IST 2026 :: Hide "move" button from task card
+- Sun Mar 01 12:43:06 IST 2026 :: Hide "move" button from task card

@@ -72,6 +72,45 @@ public class ApiController {
     return Path.of(Optional.ofNullable(System.getenv("AI_COMPANY_REPO_ROOT")).orElse("/Users/jayeshlodhiya/Desktop/ai-company-platform"));
   }
 
+  private String runCmd(Path cwd, String... command) throws Exception {
+    var pb = new ProcessBuilder(command);
+    pb.directory(cwd.toFile());
+    pb.redirectErrorStream(true);
+    var p = pb.start();
+    var out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    int code = p.waitFor();
+    if (code != 0) throw new RuntimeException(String.join(" ", command) + " failed: " + out);
+    return out.trim();
+  }
+
+  private Map<String, Object> buildRedeployAndCreatePr(Long runId, String title) throws Exception {
+    var root = repoRoot();
+
+    // Rebuild frontend + backend
+    runCmd(root, "npm", "--prefix", "frontend", "run", "build");
+    runCmd(root.resolve("backend"), "mvn", "-q", "-DskipTests", "package");
+
+    // Redeploy frontend
+    runCmd(root, "sh", "-c", "pkill -f 'vite' || true; cd frontend && nohup npm run dev >/tmp/ai-company-frontend.log 2>&1 &");
+
+    // Git branch + commit real code changes
+    String branch = "ai-run-" + runId;
+    runCmd(root, "git", "checkout", "-B", branch);
+    runCmd(root, "git", "add", "-A");
+    String staged = runCmd(root, "sh", "-c", "git diff --cached --name-only");
+    if (staged.isBlank()) return Map.of("ok", false, "error", "No code changes staged for PR");
+
+    runCmd(root, "git", "commit", "-m", "feat: auto change for run #" + runId + " - " + title);
+    runCmd(root, "git", "push", "-u", "origin", branch, "--force");
+
+    // Create PR via gh
+    var prUrl = runCmd(root, "gh", "pr", "create", "--base", "main", "--head", branch,
+      "--title", "AI run " + runId + ": " + title,
+      "--body", "Automated PR from in-app executor for run #" + runId);
+
+    return Map.of("ok", true, "prUrl", prUrl, "branch", branch, "staged", staged);
+  }
+
   private String applyTaskFileChange(String title, String description) {
     try {
       var root = repoRoot();
@@ -277,10 +316,11 @@ public class ApiController {
     if (doneId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", doneId, cardId);
     jdbc.update("update runs set status='COMPLETED' where id=?", runId);
 
-    // Auto-create PR when run completes successfully and GitHub is connected.
+    // Auto-rebuild + redeploy + PR with actual code changes.
     try {
-      var pr = githubPR(runId);
+      var pr = buildRedeployAndCreatePr(runId, title);
       if (Boolean.TRUE.equals(pr.get("ok"))) {
+        jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "build", "Build & Redeploy", "Frontend/Backend build passed and frontend restarted");
         jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR", String.valueOf(pr.get("prUrl")));
       } else {
         jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR Failed", String.valueOf(pr.getOrDefault("error", "unknown error")));
@@ -355,35 +395,8 @@ public class ApiController {
   public Map<String,Object> githubPR(@PathVariable Long runId) throws Exception {
     var run = jdbc.queryForMap("select * from runs where id=?", runId);
     var card = jdbc.queryForMap("select * from cards where id=?", run.get("card_id"));
-    var board = jdbc.queryForMap("select * from boards where id=?", card.get("board_id"));
-    var projectId = ((Number)board.get("project_id")).longValue();
-    var link = jdbc.queryForMap("select * from github_links where project_id=? order by id desc limit 1", projectId);
-
-    var owner = ownerFromRepo(String.valueOf(link.get("repo_url")));
-    var repo = nameFromRepo(String.valueOf(link.get("repo_url")));
-    if (owner == null || repo == null || githubToken().isBlank()) return Map.of("ok", false, "error", "GitHub link or token missing");
-
-    var branch = "ai-run-" + runId;
-    var base = String.valueOf(link.getOrDefault("branch", "main"));
-
-    var baseRefRes = http.send(githubReq("/repos/" + owner + "/" + repo + "/git/ref/heads/" + base).GET().build(), HttpResponse.BodyHandlers.ofString());
-    if (baseRefRes.statusCode() >= 300) return Map.of("ok", false, "error", "failed to read base ref", "detail", baseRefRes.body());
-    var sha = baseRefRes.body().split("\"sha\":\"")[1].substring(0, 40);
-
-    var createRefBody = "{\"ref\":\"refs/heads/" + branch + "\",\"sha\":\"" + sha + "\"}";
-    http.send(githubReq("/repos/" + owner + "/" + repo + "/git/refs").POST(HttpRequest.BodyPublishers.ofString(createRefBody)).header("Content-Type","application/json").build(), HttpResponse.BodyHandlers.ofString());
-
-    var content = Base64.getEncoder().encodeToString(("Run " + runId + " summary\n").getBytes(StandardCharsets.UTF_8));
-    var putBody = "{\"message\":\"chore: add run summary " + runId + "\",\"content\":\"" + content + "\",\"branch\":\"" + branch + "\"}";
-    var putRes = http.send(githubReq("/repos/" + owner + "/" + repo + "/contents/run-summaries/run-" + runId + ".md").PUT(HttpRequest.BodyPublishers.ofString(putBody)).header("Content-Type","application/json").build(), HttpResponse.BodyHandlers.ofString());
-    if (putRes.statusCode() >= 300) return Map.of("ok", false, "error", putRes.body());
-
-    var prBody = "{\"title\":\"AI Run " + runId + " summary\",\"head\":\"" + branch + "\",\"base\":\"" + base + "\",\"body\":\"Auto-generated from run " + runId + "\"}";
-    var prRes = http.send(githubReq("/repos/" + owner + "/" + repo + "/pulls").POST(HttpRequest.BodyPublishers.ofString(prBody)).header("Content-Type","application/json").build(), HttpResponse.BodyHandlers.ofString());
-    if (prRes.statusCode() >= 300) return Map.of("ok", false, "error", prRes.body());
-
-    var prUrl = prRes.body().contains("\"html_url\":\"") ? prRes.body().split("\"html_url\":\"")[1].split("\"",2)[0] : "";
-    return Map.of("ok", true, "prUrl", prUrl);
+    var title = String.valueOf(card.get("title"));
+    return buildRedeployAndCreatePr(runId, title);
   }
 
   @PostMapping("/admin/restart-services")
