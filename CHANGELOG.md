@@ -14,3 +14,4 @@
 - Sun Mar 01 14:04:39 IST 2026 :: Hide "Restart Services" button from project
 - Sun Mar 01 15:18:27 IST 2026 :: Remove Restart Services button from menu bar
 - Sun Mar 01 16:14:10 IST 2026 :: move from each stage to other in kanban slowly so that it can be seen
+- Sun Mar 01 16:27:18 IST 2026 :: implement the agents page with faces of human as agents , it should be look more interactive and a team working o tasks
