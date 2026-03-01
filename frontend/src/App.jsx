@@ -295,7 +295,6 @@ export default function App() {
           <button disabled style={{opacity:1,cursor:'default'}}>Auto Executor: ON</button>
           <button onClick={()=>setTab('kanban')} className={tab==='kanban'?'active':''}>Kanban Board</button>
           <button onClick={()=>setTab('agents')} className={tab==='agents'?'active':''}>Agents</button>
-          <button onClick={()=>setTab('runs')} className={tab==='runs'?'active':''}>Runs</button>
           <button onClick={()=>setTab('github')} className={tab==='github'?'active':''}>GitHub</button>
           <button onClick={()=>setForceOnboarding(true)}>Company Onboarding</button>
           <button onClick={async()=>{ const r = await api.post('/admin/restart-services'); setNote(r.data.message || 'Restart triggered'); }}>Restart Services</button>
