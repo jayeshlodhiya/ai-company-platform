@@ -13,3 +13,4 @@
 - Sun Mar 01 13:48:37 IST 2026 :: hide restart service button
 - Sun Mar 01 14:04:39 IST 2026 :: Hide "Restart Services" button from project
 - Sun Mar 01 15:18:27 IST 2026 :: Remove Restart Services button from menu bar
+- Sun Mar 01 16:14:10 IST 2026 :: move from each stage to other in kanban slowly so that it can be seen
