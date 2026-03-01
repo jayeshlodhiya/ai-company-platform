@@ -308,11 +308,18 @@ export default function App() {
   }
 
   async function runCard(cardId) {
+    setNote('Run started... moving across stages');
     const r = await api.post(`/cards/${cardId}/runs`, { provider: 'openai', model: 'openai-codex/gpt-5.3-codex' });
     const run = await api.get(`/runs/${r.data.runId}`);
     setRuns((prev) => [run.data.item, ...prev]);
+
+    // Stay on Kanban and refresh columns over time instead of forcing full page reload.
+    for (let i = 0; i < 4; i++) {
+      await new Promise((res) => setTimeout(res, 3200));
+      await loadColumns(boardId);
+    }
+
     setNote(`Run ${r.data.runId} completed`);
-    setTab('runs');
   }
 
   async function moveCard(cardId, targetColumnId) {
