@@ -10,3 +10,4 @@
 - Sun Mar 01 12:29:25 IST 2026 :: Auto PR live test task
 - Sun Mar 01 12:34:30 IST 2026 :: Hide "move" button from task card
 - Sun Mar 01 12:43:06 IST 2026 :: Hide "move" button from task card
+- Sun Mar 01 13:48:37 IST 2026 :: hide restart service button
