@@ -83,6 +83,16 @@ public class ApiController {
     return out.trim();
   }
 
+  private void triggerRedeployAsync() {
+    new Thread(() -> {
+      try {
+        var root = repoRoot();
+        runCmd(root, "sh", "-c", "pkill -f 'vite' || true; cd frontend && nohup npm run dev >/tmp/ai-company-frontend.log 2>&1 &");
+        runCmd(root, "sh", "-c", "pkill -f 'spring-boot:run|AiCompanyApplication' || true; cd backend && nohup mvn spring-boot:run >/tmp/ai-company-backend.log 2>&1 &");
+      } catch (Exception ignored) {}
+    }, "redeploy-thread").start();
+  }
+
   private Map<String, Object> buildRedeployAndCreatePr(Long runId, String title) throws Exception {
     var root = repoRoot();
 
@@ -90,8 +100,8 @@ public class ApiController {
     runCmd(root, "npm", "--prefix", "frontend", "run", "build");
     runCmd(root.resolve("backend"), "mvn", "-q", "-DskipTests", "package");
 
-    // Redeploy frontend
-    runCmd(root, "sh", "-c", "pkill -f 'vite' || true; cd frontend && nohup npm run dev >/tmp/ai-company-frontend.log 2>&1 &");
+    // Redeploy both services asynchronously so changes reflect automatically.
+    triggerRedeployAsync();
 
     // Git branch + commit real code changes
     String branch = "ai-run-" + runId;
