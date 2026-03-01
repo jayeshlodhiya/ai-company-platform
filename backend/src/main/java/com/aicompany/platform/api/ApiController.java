@@ -117,6 +117,16 @@ public class ApiController {
         return "Updated frontend/src/App.jsx (removed Refresh button)";
       }
 
+      if (lower.contains("hide") && lower.contains("move") && lower.contains("button")) {
+        var app = root.resolve("frontend/src/App.jsx");
+        var content = Files.readString(app);
+        content = content
+          .replace("                {colIdx > 0 && <button onClick={()=>moveCard(card.id, columns[colIdx-1].id)}>← Move</button>}\n", "")
+          .replace("                {colIdx < columns.length-1 && <button onClick={()=>moveCard(card.id, columns[colIdx+1].id)}>Move →</button>}\n", "");
+        Files.writeString(app, content, StandardOpenOption.TRUNCATE_EXISTING);
+        return "Updated frontend/src/App.jsx (removed Move buttons from task card)";
+      }
+
       if (lower.contains("add button") || lower.contains("new button")) {
         var app = root.resolve("frontend/src/App.jsx");
         var content = Files.readString(app);
