@@ -3,6 +3,14 @@ import axios from 'axios';
 
 const api = axios.create({ baseURL: 'http://localhost:4600/api' });
 
+const AGENT_FACE = {
+  PM: '🧠',
+  DEV: '👨‍💻',
+  QA: '🕵️',
+  OPS: '🚀',
+  SECURITY: '🛡️'
+};
+
 export default function App() {
   const [tab, setTab] = useState('kanban');
   const [projects, setProjects] = useState([]);
@@ -320,7 +328,21 @@ export default function App() {
         </div>
       </div>}
 
-      {tab==='agents' && <div className='panel'>{agents.map(a => <div key={a.id} className='row'>{a.name} · {a.role} · {a.status}</div>)}</div>}
+      {tab==='agents' && <div className='panel'>
+        <h3>Agent Team Workspace</h3>
+        <div className='agentGrid'>
+          {agents.map(a => (
+            <div key={a.id} className={`agentCard ${String(a.status || '').toUpperCase() === 'ACTIVE' ? 'active' : ''}`}>
+              <div className='agentFace'>{AGENT_FACE[String(a.role || '').toUpperCase()] || '🤖'}</div>
+              <div>
+                <b>{a.name}</b>
+                <div className='muted'>{a.role} · {a.status}</div>
+              </div>
+            </div>
+          ))}
+          {agents.length === 0 && <div className='row'>No agents yet.</div>}
+        </div>
+      </div>}
       {tab==='runs' && <div className='panel'>
         {runs.map(r => <div key={r.id} className='row'>
           Run #{r.id} · {r.status} · {r.provider}/{r.model}
