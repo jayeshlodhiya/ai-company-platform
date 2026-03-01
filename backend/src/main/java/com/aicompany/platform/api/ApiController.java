@@ -267,6 +267,18 @@ public class ApiController {
     if (doneId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", doneId, cardId);
     jdbc.update("update runs set status='COMPLETED' where id=?", runId);
 
+    // Auto-create PR when run completes successfully and GitHub is connected.
+    try {
+      var pr = githubPR(runId);
+      if (Boolean.TRUE.equals(pr.get("ok"))) {
+        jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR", String.valueOf(pr.get("prUrl")));
+      } else {
+        jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR Failed", String.valueOf(pr.getOrDefault("error", "unknown error")));
+      }
+    } catch (Exception ex) {
+      jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR Exception", ex.getMessage());
+    }
+
     return Map.of("runId", runId, "status", "COMPLETED");
   }
   @GetMapping("/runs/{runId}") public Map<String,Object> run(@PathVariable Long runId){ return Map.of("item", jdbc.queryForMap("select * from runs where id=?", runId)); }
