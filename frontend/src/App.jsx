@@ -297,7 +297,6 @@ export default function App() {
           <button onClick={()=>setTab('agents')} className={tab==='agents'?'active':''}>Agents</button>
           <button onClick={()=>setTab('github')} className={tab==='github'?'active':''}>GitHub</button>
           <button onClick={()=>setForceOnboarding(true)}>Company Onboarding</button>
-          <button onClick={async()=>{ const r = await api.post('/admin/restart-services'); setNote(r.data.message || 'Restart triggered'); }}>Restart Services</button>
         </div>
       </header>
       {note && <div className='row'>{note}</div>}
