@@ -4,6 +4,8 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import com.aicompany.platform.service.ExecutionEngine;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,8 +22,12 @@ public class ApiController {
   private final JdbcTemplate jdbc;
   private final HttpClient http = HttpClient.newHttpClient();
   private volatile boolean executorBusy = false;
+  private final ExecutionEngine executionEngine;
 
-  public ApiController(JdbcTemplate jdbc){ this.jdbc = jdbc; }
+  public ApiController(JdbcTemplate jdbc){
+    this.jdbc = jdbc;
+    this.executionEngine = new ExecutionEngine(repoRoot());
+  }
 
   @PostConstruct
   public void startInAppExecutor() {
@@ -131,6 +137,9 @@ public class ApiController {
 
   private String applyTaskFileChange(String title, String description) {
     try {
+      var engineResult = executionEngine.runFromInstruction(title, description);
+      if (engineResult.changed()) return engineResult.summary();
+
       var root = repoRoot();
       var lower = (title + " " + description).toLowerCase(Locale.ROOT);
 
@@ -227,6 +236,12 @@ public class ApiController {
   @PostMapping("/auth/register") public Map<String,Object> register(@RequestBody Map<String,Object> b){ return Map.of("ok",true); }
   @PostMapping("/auth/login") public Map<String,Object> login(@RequestBody Map<String,Object> b){ return Map.of("token","dev-token"); }
   @GetMapping("/executor/status") public Map<String,Object> executorStatus(){ return Map.of("ok", true, "running", true, "busy", executorBusy); }
+  @PostMapping("/executor/execute") public Map<String,Object> executorExecute(@RequestBody Map<String,Object> body){
+    var title = String.valueOf(body.getOrDefault("title", ""));
+    var description = String.valueOf(body.getOrDefault("description", ""));
+    var r = executionEngine.runFromInstruction(title, description);
+    return Map.of("ok", r.changed(), "result", r.summary());
+  }
 
   @GetMapping("/companies") public Map<String,Object> companies(){ return Map.of("items", jdbc.queryForList("select * from companies order by id desc")); }
   @PostMapping("/companies") public Map<String,Object> addCompany(@RequestBody Map<String,Object> b){ jdbc.update("insert into companies(name) values(?)", b.get("name")); return Map.of("ok",true); }
@@ -333,17 +348,27 @@ public class ApiController {
     jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "qa", "QA Checklist", "Smoke + regression checks");
     jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "ops", "Ops Checklist", "Deploy + rollback plan");
     jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "file_change", "Applied File Changes", fileChangeResult);
+
+    boolean meaningfulChange = fileChangeResult != null
+      && !fileChangeResult.startsWith("Logged task in CHANGELOG.md")
+      && !fileChangeResult.startsWith("File change failed:");
+
+    if (!meaningfulChange) {
+      jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "summary", "Run Summary", "No relevant code change applied. Kept in Review.");
+      jdbc.update("update runs set status='FAILED' where id=?", runId);
+      return Map.of("runId", runId, "status", "FAILED", "reason", "No relevant code changes applied");
+    }
+
     jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "summary", "Run Summary", "Planning → Execution → Review complete");
 
-    if (doneId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", doneId, cardId);
-    jdbc.update("update runs set status='COMPLETED' where id=?", runId);
-
+    boolean completed = false;
     // Auto-rebuild + redeploy + PR with actual code changes.
     try {
       var pr = buildRedeployAndCreatePr(runId, title);
       if (Boolean.TRUE.equals(pr.get("ok"))) {
-        jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "build", "Build & Redeploy", "Frontend/Backend build passed and frontend restarted");
+        jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "build", "Build & Redeploy", "Frontend/Backend build passed and services redeployed");
         jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR", String.valueOf(pr.get("prUrl")));
+        completed = true;
       } else {
         jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR Failed", String.valueOf(pr.getOrDefault("error", "unknown error")));
       }
@@ -351,7 +376,16 @@ public class ApiController {
       jdbc.update("insert into artifacts(run_id,card_id,kind,title,content) values(?,?,?,?,?)", runId, cardId, "github_pr", "Auto PR Exception", ex.getMessage());
     }
 
-    return Map.of("runId", runId, "status", "COMPLETED");
+    if (completed) {
+      if (doneId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", doneId, cardId);
+      jdbc.update("update runs set status='COMPLETED' where id=?", runId);
+      return Map.of("runId", runId, "status", "COMPLETED");
+    }
+
+    // keep in review if build/redeploy/PR failed
+    if (reviewId != null) jdbc.update("update cards set column_id=?, updated_at=now() where id=?", reviewId, cardId);
+    jdbc.update("update runs set status='FAILED' where id=?", runId);
+    return Map.of("runId", runId, "status", "FAILED", "reason", "Build/redeploy/PR gate failed");
   }
   @GetMapping("/runs/{runId}") public Map<String,Object> run(@PathVariable Long runId){ return Map.of("item", jdbc.queryForMap("select * from runs where id=?", runId)); }
   @GetMapping("/runs/{runId}/messages") public Map<String,Object> runMsgs(@PathVariable Long runId){ return Map.of("items", jdbc.queryForList("select * from message_logs where run_id=? order by id", runId)); }

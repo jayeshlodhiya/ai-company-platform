@@ -14,7 +14,7 @@
 .crumb{font-size:.86rem;color:#6b7280}
 .topbar input{padding:10px;border:1px solid #d1d5db;border-radius:12px;background:#fff}
 .tabs{display:flex;gap:8px;flex-wrap:wrap}
-.tabs button{padding:8px 14px;border:1px solid #d1d5db;border-radius:999px;background:#fff;cursor:pointer}
+.tabs button{padding:8px 12px;border:1px solid #2563eb;border-radius:999px;background:#2563eb;color:#fff;cursor:pointer}
 .tabs button.active{background:#111827;color:#fff;border-color:#111827}
 
 .hierarchyTiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
@@ -31,7 +31,7 @@
 .card b{font-size:22px;line-height:1.15;color:#111827}
 .card small{color:#6b7280;font-size:12px;letter-spacing:.02em}
 .moves{display:flex;gap:6px;flex-wrap:wrap}
-.card button,.panel button{padding:7px 12px;border-radius:10px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+.card button,.panel button{padding:7px 10px;border-radius:8px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer}
 
 .bottomBar{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr auto;gap:8px;background:linear-gradient(180deg,rgba(242,244,248,0),#f2f4f8 42%);padding-top:10px}
 .bottomBar input{padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#fff}
@@ -46,10 +46,12 @@
 .steps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}.steps span{padding:6px 10px;border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#6b7280;font-size:.85rem}.steps span.active{background:#111827;color:#fff;border-color:#111827}
 .step-actions{display:flex;gap:8px}
 
-.agentGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.agentCard{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:14px;background:#f9fafb}
-.agentCard.active{box-shadow:0 0 0 1px #11182722,0 10px 20px rgba(17,24,39,.08)}
-.agentFace{width:44px;height:44px;border-radius:999px;display:grid;place-items:center;background:#fff;border:1px solid #e5e7eb;font-size:22px}
+.agentGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.agentCard{padding:12px;border:1px solid #e5e7eb;border-radius:16px;background:linear-gradient(160deg,#ffffff,#f3f6fb);display:grid;gap:10px;box-shadow:0 8px 18px rgba(17,24,39,.05)}
+.agentCard.active{box-shadow:0 0 0 1px #2563eb33,0 14px 28px rgba(37,99,235,.12)}
+.agentTop{display:flex;align-items:center;gap:10px}
+.agentAvatar{width:56px;height:56px;border-radius:14px;border:1px solid #dbe3f0;background:#fff;object-fit:cover}
+.agentMeta{display:grid;gap:4px;font-size:.84rem;color:#334155}
 .muted{color:#6b7280;font-size:.9rem}
 
 @media(max-width:1200px){.hierarchyTiles{grid-template-columns:1fr 1fr}.kanban{grid-template-columns:1fr 1fr}.topbar{grid-template-columns:1fr}.agentGrid{grid-template-columns:1fr}}
