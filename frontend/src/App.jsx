@@ -10,10 +10,17 @@ const AGENT_FACE = {
   OPS: '🚀',
   SECURITY: '🛡️'
 };
+const AGENT_AVATAR = {
+  PM: 'https://api.dicebear.com/9.x/notionists/svg?seed=PM+Agent',
+  DEV: 'https://api.dicebear.com/9.x/notionists/svg?seed=Dev+Agent',
+  QA: 'https://api.dicebear.com/9.x/notionists/svg?seed=QA+Agent',
+  OPS: 'https://api.dicebear.com/9.x/notionists/svg?seed=Ops+Agent',
+  SECURITY: 'https://api.dicebear.com/9.x/notionists/svg?seed=Security+Agent'
+};
 const PLATFORM_ADMIN_EMAIL = 'admin@example.com';
 
 export default function App() {
-  const [tab, setTab] = useState('kanban');
+  const [tab, setTab] = useState('agents');
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState(null);
   const [companies, setCompanies] = useState([]);
@@ -308,11 +315,18 @@ export default function App() {
   }
 
   async function runCard(cardId) {
+    setNote('Run started... moving across stages');
     const r = await api.post(`/cards/${cardId}/runs`, { provider: 'openai', model: 'openai-codex/gpt-5.3-codex' });
     const run = await api.get(`/runs/${r.data.runId}`);
     setRuns((prev) => [run.data.item, ...prev]);
+
+    // Stay on Kanban and refresh columns over time instead of forcing full page reload.
+    for (let i = 0; i < 4; i++) {
+      await new Promise((res) => setTimeout(res, 3200));
+      await loadColumns(boardId);
+    }
+
     setNote(`Run ${r.data.runId} completed`);
-    setTab('runs');
   }
 
   async function moveCard(cardId, targetColumnId) {
@@ -541,23 +555,35 @@ export default function App() {
           </div>
         </div>)}
         <div className='bottomBar'>
-          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder='Add card from bottom input...' />
+          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder='Add task (supports: create file / append to / replace in / run command)...' />
           <button onClick={addCard}>Add Task</button>
+        </div>
+        <div className='row'>
+          Executor helper: <code>create file frontend/src/demo.txt with hello</code> · <code>append to frontend/src/demo.txt: world</code> · <code>replace in frontend/src/App.jsx: old {'=>'} new</code> · <code>run command: npm --prefix frontend run build</code>
         </div>
       </div>}
 
       {tab==='agents' && <div className='panel'>
-        <h3>Agent Team Workspace</h3>
+        <h3>AI Workforce</h3>
         <div className='agentGrid'>
-          {agents.map(a => (
-            <div key={a.id} className={`agentCard ${String(a.status || '').toUpperCase() === 'ACTIVE' ? 'active' : ''}`}>
-              <div className='agentFace'>{AGENT_FACE[String(a.role || '').toUpperCase()] || '🤖'}</div>
-              <div>
-                <b>{a.name}</b>
-                <div className='muted'>{a.role} · {a.status}</div>
+          {agents.map(a => {
+            const role = String(a.role || '').toUpperCase();
+            return (
+              <div key={a.id} className={`agentCard ${String(a.status || '').toUpperCase() === 'ACTIVE' ? 'active' : ''}`}>
+                <div className='agentTop'>
+                  <img className='agentAvatar' src={AGENT_AVATAR[role] || 'https://api.dicebear.com/9.x/notionists/svg?seed=AI+Agent'} alt={a.name} />
+                  <div>
+                    <b>{a.name}</b>
+                    <div className='muted'>{a.role} · {a.status}</div>
+                  </div>
+                </div>
+                <div className='agentMeta'>
+                  <span>{AGENT_FACE[role] || '🤖'} Role: {role || 'GENERAL'}</span>
+                  <span>Focus: {role === 'DEV' ? 'Implementation' : role === 'QA' ? 'Testing' : role === 'OPS' ? 'Deployment' : role === 'PM' ? 'Planning' : 'Security checks'}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {agents.length === 0 && <div className='row'>No agents yet.</div>}
         </div>
       </div>}
